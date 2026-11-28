@@ -1,0 +1,26 @@
+# ADR-0004 스파이크: GitHub Actions 러너(해외 IP)에서 서울경찰청 게시판에 접근되는지 본다.
+name: spike-smpa
+
+on:
+  push:
+    paths: [.github/workflows/spike.yml]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 목록 페이지
+        run: |
+          code=$(curl -sS -m 30 -o list.html -w '%{http_code}' https://www.smpa.go.kr/user/nd54882.do || echo fail)
+          echo "status=$code size=$(wc -c < list.html 2>/dev/null || echo 0)"
+          grep -o "goBoardView('[^']*','View','[0-9]*')" list.html | head -3 || true
+          test "$code" = 200
+      - name: 첫 상세 글
+        run: |
+          no=$(grep -o "goBoardView('[^']*','View','[0-9]*')" list.html | head -1 | grep -o "[0-9]*')" | tr -d "')")
+          code=$(curl -sS -m 30 -o view.html -w '%{http_code}' "https://www.smpa.go.kr/user/nd54882.do?View&boardNo=$no")
+          echo "boardNo=$no status=$code size=$(wc -c < view.html)"
+          grep -c "일시" view.html || true
+          test "$code" = 200
